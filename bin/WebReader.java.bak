@@ -1,0 +1,203 @@
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.ResponseHandler;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+
+public class WebReader {
+	HttpClient client = null;
+	String title = "";
+	String site = "";
+	int semester = 0;
+	ArrayList<ArrayList> outRows = null;
+	
+	public WebReader(String site, boolean WS)
+	{
+		this.site = site;
+		try {
+			this.readPage();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		if (title.contains("2015") && title.contains("2017"))
+		{
+			semester = 1;
+		}
+		else if (title.contains("2014") && title.contains("2016"))
+		{
+			semester = 3;
+		}
+		else
+		{
+			System.out.println("Error calculating semester: " + title);
+			semester = 5;
+		}
+		
+		if (WS)
+		{
+			semester = semester+1;
+		}
+	}
+	
+	public ArrayList<String> getList()
+	{
+		ArrayList<String> list = new ArrayList<String>();
+        System.out.println(getTitle());
+
+		for (int r=1; r<outRows.size(); r++)
+		{
+			ArrayList<String> cols = outRows.get(r);
+			String semester = cols.get(0);
+			//System.out.println(semester);
+			if (semester.contains(this.semester+"."))
+			{
+				for (int c = 1; c<cols.size(); c++)
+				{
+					String col = cols.get(c).replace("*", "");
+					if (isNumeric(col.substring(4, 8)))
+					{
+						String key = col.substring(0, 8);
+						list.add(key);
+						System.out.println(key);
+					}
+					else
+					{
+						System.out.println("Unknown kurs: "+col);
+					}
+				}
+			}
+		}
+		return list;
+	}
+	
+	private boolean isNumeric(String s) {  
+	    return s.matches("[-+]?\\d*\\.?\\d+");  
+	} 
+	
+	private ArrayList<ArrayList> readPage() throws IOException
+	{
+		outRows = new ArrayList();
+        CloseableHttpClient httpclient = HttpClients.createDefault();
+        try {
+            HttpGet httpget = new HttpGet(site);
+
+            //System.out.println("Executing request " + httpget.getRequestLine());
+
+            // Create a custom response handler
+            ResponseHandler<String> responseHandler = new ResponseHandler<String>() {
+
+                @Override
+                public String handleResponse(
+                        final HttpResponse response) throws ClientProtocolException, IOException {
+                    int status = response.getStatusLine().getStatusCode();
+                    if (status >= 200 && status < 300) {
+                        HttpEntity entity = response.getEntity();
+                        return entity != null ? EntityUtils.toString(entity) : null;
+                    } else {
+                        throw new ClientProtocolException("Unexpected response status: " + status);
+                    }
+                }
+
+            };
+            String responseBody = httpclient.execute(httpget, responseHandler);
+            //return responseBody;
+            //System.out.println("----------------------------------------");
+            //System.out.println(responseBody);
+            //String tmpTitle = responseBody.substring(responseBody.indexOf("<div class=\"bis-content-wp-header\">"), responseBody.indexOf("</div>", responseBody.indexOf("<div class=\"bis-content-wp-header\">")));
+            String tmpTitle = responseBody.substring(responseBody.indexOf("<title"), responseBody.indexOf("</title>"));
+			title = removeTags(tmpTitle);
+            String[] tables = responseBody.split("<table");
+            for (int i=1; i<tables.length; i++)
+            {
+            	String curTable = "<table" + tables[i];
+            	if (curTable.contains("semester") && curTable.contains("ECTS"))
+            	{
+        			//System.out.println("_______ NEW TABLE ________");
+            		String[] rows = curTable.split("<tr");
+            		for (int r=1; r<rows.length; r++)
+            		{
+            			//System.out.println("-----New Row!-----");
+            			String curRow = rows[r].substring(rows[r].indexOf('>')+1, rows[r].indexOf("</tr>"));
+                		String[] cols = curRow.split("<td");
+                		ArrayList<String> outCols = new ArrayList<String>();
+                		for (int c=1; c<cols.length; c++)
+                		{
+                			//System.out.println(cols[c]);
+                			String curCol = cols[c].substring(cols[c].indexOf('>')+1, cols[c].indexOf("</td>"));
+                			curCol = removeTags(curCol);
+                			if (curCol.contains("Specialisation electives"))
+                			{
+                				String uList = null;
+                				if (responseBody.contains("<i>"+outCols.get(0)))
+                				{
+	                				uList = responseBody.substring(responseBody.indexOf("<ul>", responseBody.indexOf("<i>"+outCols.get(0))), responseBody.indexOf("</ul>",responseBody.indexOf("<ul>", responseBody.indexOf("<i>"+outCols.get(0)))));
+                				}
+                				else
+                				{
+                					//System.out.println("HANDLING SPECIAL: " + responseBody.indexOf("<b>*Specialisation electives"));
+	                				uList = responseBody.substring(responseBody.indexOf("<ul", responseBody.indexOf("<b>*Specialisation electives")), responseBody.indexOf("</ul>",responseBody.indexOf("<ul", responseBody.indexOf("<b>*Specialisation electives"))));
+                				}
+
+                				//System.out.println(uList);
+                				String[] uListElements = uList.split("<li");
+                				for (int ul=1; ul<uListElements.length; ul++)
+                				{
+                					String uListElement = "<li"+uListElements[ul];
+                					uListElement = removeTags(uListElement);
+                    				outCols.add(uListElement);
+                				}
+                			}
+                			else
+                			{
+                				outCols.add(curCol);
+                			}
+            				//System.out.println(curCol);
+                		}
+                		
+                		outRows.add(outCols);
+            		}
+            	}
+            }
+		} finally {
+            httpclient.close();
+        }
+        
+        return outRows;
+	}
+	
+	private String removeTags(String curCol)
+	{
+		while (curCol.contains("<") && curCol.contains(">"))
+		{
+			curCol = curCol.substring(0, curCol.indexOf("<")) + curCol.substring(curCol.indexOf(">", curCol.indexOf("<"))+1, curCol.length());
+		}
+		while (curCol.contains("&#") && curCol.contains(";"))
+		{
+			curCol = curCol.substring(0, curCol.indexOf("&#")) + " " + curCol.substring(curCol.indexOf(";", curCol.indexOf("&#"))+1, curCol.length());
+		}
+		curCol = curCol.trim();
+		
+		return curCol;
+	}
+	
+	public String getTitle()
+	{
+		return title + " (" + semester + ". Semester)";
+	}
+
+}

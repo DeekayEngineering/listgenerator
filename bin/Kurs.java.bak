@@ -1,0 +1,60 @@
+import java.util.ArrayList;
+
+
+public class Kurs {
+	String id;
+	String title;
+	String language;
+	ArrayList<Book> recommendedBooks = new ArrayList<Book>();
+	ArrayList<Book> compulsoryBooks = new ArrayList<Book>();
+	
+	public Kurs(String id)
+	{
+		this.id = id;
+	}
+	
+	public void setTitle(String title)
+	{
+		this.title = title;
+	}
+	
+	public void setLanguage(String language)
+	{
+		this.language = language;
+	}
+	
+	public void setRecommendedBooks(ArrayList<Book> books)
+	{
+		this.recommendedBooks = books;
+	}
+	
+	public void setCompulsoryBooks(ArrayList<Book> books)
+	{
+		this.compulsoryBooks = books;
+	}
+	
+	public String getId()
+	{
+		return id;
+	}
+	
+	public String getTitle()
+	{
+		return title;
+	}
+	
+	public ArrayList<Book> getRecommendedBooks()
+	{
+		return recommendedBooks;
+	}
+	
+	public ArrayList<Book> getCompulsoryBooks()
+	{
+		return compulsoryBooks;
+	}
+	
+	public String getLanguage()
+	{
+		return language;
+	}
+}

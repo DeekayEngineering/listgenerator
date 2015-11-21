@@ -1,0 +1,58 @@
+
+public class Book {
+	String authors = null;
+	String year = null;
+	String title = null;
+	String publisher = null;
+	
+	public Book(String info)
+	{
+		String[] parts = info.split("\\.");
+		
+		for (String item : parts)
+		{
+			item = item.trim();
+			if (item.matches("^[0-9]+$"))
+			{
+				//System.out.println("year: "+item);
+				year = item;
+				break;
+			}
+		}
+		
+		if (year == null || info.indexOf(year) <= 1)
+		{
+			System.out.println(info);
+			title = info.trim();
+		}
+		else
+		{
+			//System.out.println(info);
+			//System.out.println(info.indexOf(year));
+			authors = info.substring(0, info.indexOf(year)).trim();
+			if (authors.charAt(authors.length()-1) == '.')
+			{
+				authors = authors.substring(0, authors.length()-1);
+			}
+			
+			String rest = info.substring(info.indexOf(year)+5);
+			//System.out.println("rest: "+rest);
+			
+			title = rest.substring(0, rest.indexOf(".")).trim();
+		}
+	}
+	
+	public String getAuthors()
+	{
+		if (authors == null)
+		{
+			return null;
+		}
+		return authors.toUpperCase().trim();
+	}
+	
+	public String getTitle()
+	{
+		return title.trim();
+	}
+}

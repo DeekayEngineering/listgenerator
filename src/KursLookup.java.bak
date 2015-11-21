@@ -1,0 +1,193 @@
+import java.io.IOException;
+import java.util.ArrayList;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.ResponseHandler;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+
+public class KursLookup {
+
+	public static Kurs lookup(String id) throws IOException
+	{
+		String body = null;
+		String language = null;
+		try
+		{
+			language = "Eng";
+			body = getBodyFromUrl(getUrl(id, language));
+		}
+		catch (ClientProtocolException e)
+		{
+			language = "";
+			body = getBodyFromUrl(getUrl(id, language));
+		}
+		
+        return createKurs(id, body, language);
+	}
+	
+	private static String getBodyFromUrl(String Url) throws ClientProtocolException, IOException
+	{
+        CloseableHttpClient httpclient = HttpClients.createDefault();
+        try {
+            HttpGet httpget = new HttpGet(Url);
+
+            //System.out.println("Executing request " + httpget.getRequestLine());
+
+            // Create a custom response handler
+            ResponseHandler<String> responseHandler = new ResponseHandler<String>() {
+
+                @Override
+                public String handleResponse(
+                        final HttpResponse response) throws ClientProtocolException, IOException {
+                    int status = response.getStatusLine().getStatusCode();
+                    if (status >= 200 && status < 300) {
+                        HttpEntity entity = response.getEntity();
+                        return entity != null ? EntityUtils.toString(entity) : null;
+                    } else {
+                        throw new ClientProtocolException("Unexpected response status: " + status);
+                    }
+                }
+
+            };
+            String responseBody = httpclient.execute(httpget, responseHandler);
+            return responseBody;
+            //System.out.println("----------------------------------------");
+            //System.out.println(responseBody);
+		} finally {
+            httpclient.close();
+        }
+	}
+	
+	private static Kurs createKurs(String id, String body, String language)
+	{
+        String title = getTitle(id, body);
+        
+        //System.out.println(title);
+        //System.out.println(booksRaw);
+        
+        Kurs kurs = new Kurs(id);
+        kurs.setTitle(title);
+        kurs.setLanguage(language);
+
+        ArrayList<Book> books = new ArrayList<Book>();
+        String booksRaw = getBooks(id, body, language, false);
+        if (booksRaw != null)
+        {
+	        String[] aBooks = booksRaw.split("<br>");
+	        for (String bookStr : aBooks)
+	        {
+	        	Book book = new Book(bookStr);
+	        	books.add(book);
+	        	
+	        	//System.out.println(book.getAuthors()+" - "+book.getTitle());
+	        }
+	        kurs.setRecommendedBooks(books);
+        }
+        
+        books = new ArrayList<Book>();
+        booksRaw = getBooks(id, body, language, true);
+        if (booksRaw != null)
+        {
+	        String[] aBooks = booksRaw.split("<br>");
+	        for (String bookStr : aBooks)
+	        {
+	        	Book book = new Book(bookStr);
+	        	books.add(book);
+	        	
+	        	//System.out.println(book.getAuthors()+" - "+book.getTitle());
+	        }
+	        kurs.setCompulsoryBooks(books);
+        }
+        
+        return kurs;
+	}
+	
+	private static String getUrl(String id, String language)
+	{
+		String[] parts = id.split(" ");
+		String alpha = parts[0];
+		String num = parts[1];
+	
+		String URL = "http://web.bi.no/info/kurs2015.nsf/vWebKurslookup"+language+"/"+alpha+"+"+num;
+		//String URL = "http://web.bi.no/info/kurs2015.nsf/vWebKurslookupEng/"+alpha+"+"+num;
+		
+		return URL;
+	}
+	
+	private static String getBooks(String id, String body, String language, boolean compulsory)
+	{
+		String searchString = null;
+		String prevMatch = null;
+		if (language.equalsIgnoreCase("eng"))
+		{
+			searchString = "Books:";
+			if (compulsory)
+			{
+				prevMatch = "Compulsory reading";
+			}
+			else
+			{
+				prevMatch = "Recommended reading";
+			}
+		}
+		else
+		{
+			searchString = "Bøker:";
+			if (compulsory)
+			{
+				prevMatch = "Anbefalt litteratur";
+			}
+			else
+			{
+				prevMatch = "Obligatorisk litteratur";
+			}
+		}
+		return getParagraph(body, searchString, 1, prevMatch);
+	}
+	
+	private static String getTitle(String id, String body)
+	{
+		return getParagraph(body, id, 2, null);
+	}
+	
+	private static String getParagraph(String body, String key, int offset, String prevMatch)
+	{
+		String[] blocksRaw = body.split("<font ");
+		ArrayList<String> blocks = new ArrayList<String>();
+		
+		for (int i = 0; i<blocksRaw.length; i++)
+		{
+			String block = blocksRaw[i];
+			if (block.contains("</font>"))
+			{
+				int start = block.indexOf(">");
+				int end = block.indexOf("</font>");
+				String content = block.substring(start+1, end);
+				
+				blocks.add(content);
+			}
+		}
+		
+		for (int i = 0; i<blocks.size(); i++)
+		{
+			String block = blocks.get(i);
+			//System.out.println(block);
+			if (prevMatch == null || (i>0 && blocks.get(i-1).equalsIgnoreCase(prevMatch)))
+			{
+				if (block.equalsIgnoreCase(key))
+				{
+					return blocks.get(i+offset);
+				}
+			}
+		}
+		
+		return null;
+		
+	}
+}
